@@ -1,0 +1,54 @@
+name: Build and deploy .NET application to Container App razor50nodockerapp20220209224857
+on:
+  push:
+    branches:
+    - master
+env:
+  CONTAINER_APP_CONTAINER_NAME: andy09container
+  CONTAINER_APP_NAME: razor50nodockerapp20220209224857
+  CONTAINER_APP_RESOURCE_GROUP_NAME: andy09LinuxGroup
+  CONTAINER_REGISTRY_LOGIN_SERVER: razor50nodocker20220209225302.azurecr.io
+  DOCKER_FILE_PATH: ./Dockerfile
+  PROJECT_NAME_FOR_DOCKER: razor50nodocker
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout to the branch
+      uses: actions/checkout@v2
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Log in to container registry
+      uses: docker/login-action@v1
+      with:
+        registry: ${{ env.CONTAINER_REGISTRY_LOGIN_SERVER }}
+        username: ${{ secrets.Razor50NoDocker20220209225302_USERNAME_FFFF }}
+        password: ${{ secrets.Razor50NoDocker20220209225302_PASSWORD_FFFF }}
+    - name: Build and push container image to registry
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        tags: ${{ env.CONTAINER_REGISTRY_LOGIN_SERVER }}/${{ env.PROJECT_NAME_FOR_DOCKER }}:${{ github.sha }}
+        file: ${{ env.DOCKER_FILE_PATH }}
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.razor50nodockerapp20220209224857_SPN }}
+    - name: Deploy to containerapp
+      uses: azure/CLI@v1
+      with:
+        inlineScript: >
+          echo "Installing containerapp extension"
+
+          az extension add --source https://workerappscliextension.blob.core.windows.net/azure-cli-extension/containerapp-0.2.1-py2.py3-none-any.whl --yes
+
+          echo "Starting Deploying"
+
+          az containerapp update --name ${{ env.CONTAINER_APP_NAME }} --resource-group ${{ env.CONTAINER_APP_RESOURCE_GROUP_NAME }} -i ${{ env.CONTAINER_REGISTRY_LOGIN_SERVER }}/${{ env.PROJECT_NAME_FOR_DOCKER }}:${{ github.sha }} --registry-login-server ${{ env.CONTAINER_REGISTRY_LOGIN_SERVER }} --registry-username  ${{ secrets.REGISTRY_USERNAME }} --registry-password ${{ secrets.REGISTRY_PASSWORD }} --debug
+    - name: logout
+      run: >
+        az logout
